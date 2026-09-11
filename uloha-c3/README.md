@@ -10,7 +10,9 @@ přes LLM. Zvaž použití MCP místo framework-specific toolů.
 - **Agent typ:** Plan-Execute.
 - **Nástroje:** databáza **cez MCP** (`run_sql_query`) + webový vyhľadávač **Tavily** +
   `get_current_date` (dnešný dátum a kvartál).
-- **LLM:** OpenAI `gpt-5-nano`.
+- **LLM:** OpenAI `gpt-5.6-luna` (dá sa zmeniť cez `OPENAI_MODEL` v `agent/.env`). Volá sa
+  cez OpenAI **Responses API** — gpt-5.6 modely v Chat Completions API nepodporujú nástroje
+  spolu s reasoningom.
 
 ## Use case
 
@@ -70,7 +72,8 @@ PLANNER    (planner.py)    → zoznam krokov
 **Northwind Cloud Storage** — kritický, auto-renew, $240k, obnova 2026-11-15 — má zhluk
 3× SEV1 výpadkov + SLA breach za posledné ~6 týždňov. Správne odporúčanie je *neísť do
 auto-renew, renegotiovať SLA / plánovať náhradu*. **Cedar Payroll** je čistý → renew.
-**Atlas Analytics** má +38 % cenu bez incidentov → review pricing.
+**Atlas Analytics** nemá incidenty, ale jeho `renewal_quote` (cena ponúknutá na ďalšie
+obdobie) je o 38 % vyššia než `annual_value` → review pricing.
 
 Agent musí interné riziko **detekovať SQL agregáciou** (nie len vypísať), rozhodnúť sa,
 koho ísť skúmať na web, a skombinovať interné + externé do obhájiteľného odporúčania.
@@ -97,7 +100,7 @@ uloha-c3/
     replanner.py   # REPLAN: COMPLETE (odpoveď) alebo CONTINUE (zvyšok plánu)
     tools.py       # Tavily web_search + get_current_date @tool
     mcp_client.py  # načíta DB nástroje z MCP servera (langchain-mcp-adapters)
-    model.py       # get_model → OpenAI gpt-5-nano
+    model.py       # get_model → OpenAI gpt-5.6-luna
     visualizer.py  # vykreslí graph.png
   .env.example
 ```
@@ -110,7 +113,7 @@ Potrebuješ `OPENAI_API_KEY` a `TAVILY_API_KEY` (Tavily má free tier).
 cp .env.example agent/.env      # a doplň oba kľúče
 ```
 
-**1. Postav databázu** (raz):
+**1. Postav databázu** (raz, a znova po každej zmene `seed.py`):
 ```
 cd uloha-c3/mcp_server
 uv run seed.py
@@ -154,67 +157,89 @@ uv run main.py "tvoja otázka"
 | `▶ plan unchanged` | pokračuje sa podľa doterajšieho plánu |
 | `🏁` | koniec: počet cyklov a preplánovaní |
 
-Skrátený skutočný výstup (otázka č. 2, beh 2026-09-11; dlhé SQL a výsledky skrátené `…`):
+Skrátený skutočný výstup (otázka č. 2, `gpt-5.6-luna`, beh 2026-09-11; dlhé SQL a výsledky
+skrátené `…`):
 
 ```
 📋 PLAN
 📝 plan (4 steps):
-   1. Execute a database query to retrieve all Q4-renewing vendor contracts, …
-   2. Query internal risk signals for the vendors identified in Step 1, …
-   3. Identify vendors flagged as high risk or high criticality and perform external web searches …
-   4. Generate a consolidated risk and action recommendation per vendor …
+   1. Query the database for vendors with contracts renewing in Q4, including vendor name, …
+   2. Query the database for recent internal risk signals for those Q4 vendors, …
+   3. Identify which Q4 vendors warrant risk review … then search the web … for those vendors only.
+   4. Produce a recommendation for each Q4 vendor, …
 
 🚀 EXECUTE   (cycle 1)
-   ▶ step: Execute a database query to retrieve all Q4-renewing vendor contracts, …
+   ▶ step: Query the database for vendors with contracts renewing in Q4, …
    🤖 model call 1/8
    🔧 get_current_date({})
       ↳ Today is 2026-09-11 (Friday). Current quarter: Q3 2026 (2026-07-01 to 2026-09-30).
    🤖 model call 2/8
-   🔧 run_sql_query({'query': "SELECT … WHERE c.renewal_date BETWEEN '2026-10-01' AND '2026-12-31' …"})
+   🔧 run_sql_query({'query': "SELECT v.name AS vendor_name, … WHERE c.renewal_date BETWEEN '2026-10-01' AND '2026-12-31' …"})
       ↳ {"row_count": 6, …}
    🤖 model call 3/8
-   💬 step result: - vendor_id: 7, annual_value: 84000.0, renewal_date: 2026-10-05, criticality: high …
+   💬 step result: Q4 2026 contract renewals: …
 
 🔄 REPLAN   (cycle 1)
-   decision: CONTINUE — Internal risk signals and external risk checks are needed …
+   decision: CONTINUE — The Q4 contract list is complete, but recent incidents and renewal-price comparisons have not yet been queried, …
    🔀 PLAN CHANGED (replan #1) - remaining steps:
-      1. Query internal risk signals for vendor_ids [7,3,1,5,2,8], …
+      1. Query the database for each Q4 vendor’s incidents from approximately the last 90 days and compare renewal quote with annual value.
+      2. Classify each vendor using the incident and pricing rules: …
       …
+
+🚀 EXECUTE   (cycle 2)
+   ▶ step: Query the database for each Q4 vendor’s incidents from approximately the last 90 days and compare renewal quote with annual value.
+   …
+   🔧 run_sql_query({'query': "SELECT v.name AS vendor, … LEFT JOIN incidents i ON … AND i.date BETWEEN '2026-06-13' AND '2026-09-11' …"})
+      ↳ {"row_count": 9, …}
+   🤖 model call 3/8
+   💬 step result: … **Atlas Analytics:** No incidents. … (**+$27,360, +38%**). **Northwind Cloud Storage:** Four incidents: …
 
 🔄 REPLAN   (cycle 2)
-   decision: CONTINUE — Internal data flags high/near-renewal risk across Q4 vendors, …
+   decision: CONTINUE — Incident and pricing data identify Northwind Cloud Storage for renegotiation/replacement and Atlas Analytics for pricing review, but required exact-company web searches have not been completed.
    🔀 PLAN CHANGED (replan #2) - remaining steps:
-      1. External risk checks for high-risk/high-critical vendors: 1, 2, 7.
-      …
+      1. Web-search Northwind Cloud Storage for recent exact-company breaches, outages, bankruptcies, or acquisitions, …
+      2. Web-search Atlas Analytics for recent exact-company breaches, outages, bankruptcies, or acquisitions, …
+      3. Produce one recommendation per Q4 vendor using the incident and pricing rules, …
 
 🚀 EXECUTE   (cycle 3)
-   ▶ step: External risk checks for high-risk/high-critical vendors: 1, 2, 7.
+   ▶ step: Web-search Northwind Cloud Storage for recent exact-company breaches, outages, bankruptcies, or acquisitions, …
    🤖 model call 1/8
-   🔧 run_sql_query({'query': 'SELECT vendor_id, name, category, country, criticality FROM vendors WHERE vendor_id IN (1,2,7);'})
-      ↳ {"row_count": 3, …}
+   🔧 web_search({'query': '"Northwind Cloud Storage" outage breach acquisition bankruptcy'})
+      ↳ Product: Cloud Outage …
+   🔧 web_search({'query': '"Northwind Cloud Storage"'})
+      ↳ Northwind Self Storage | LinkedIn …
    🤖 model call 2/8
-   🔧 web_search({'query': 'Northwind Cloud Storage vendor risk outage breach'})
-      ↳ Third-Party Insider Threats 2025 | Insider Risk Index …
-   🔧 web_search({'query': 'Cedar Payroll vendor risk security breach outages'})
-      ↳ 8 Third-Party Risk Examples Every 2026 Security Team ...
-   🔧 web_search({'query': 'Silverline Backups vendor risk outage breach'})
-      ↳ When a Vendor Goes Dark: Lessons From the TruStage ...
-   🤖 model call 3/8
-   💬 step result: External risk checks for high-risk/high-critical vendors: 1, 2, 7 …
+   💬 step result: No vendor-specific news found for the exact company **Northwind Cloud Storage**. Search results referred to unrelated entities, including Northwind Midstream and Northwind Self Storage; …
 
 🔄 REPLAN   (cycle 3)
-   decision: COMPLETE — Internal risk signals merged with external risk context provide enough basis …
+   decision: CONTINUE — Atlas Analytics exceeds the 10% pricing threshold and must be web-searched before recommending an action.
+   ▶ plan unchanged - remaining steps:
+      …
 
-🏁 COMPLETED · 3 cycle(s) · 2 replan(s)
+🚀 EXECUTE   (cycle 4)
+   …
+   🔧 web_search({'query': '"Atlas Analytics" breach OR outage OR bankruptcy OR acquisition 2026'})
+      ↳ Downdetector - Check real-time service problems and ... …
+   🔧 web_search({'query': '"Atlas Analytics" company news security incident service outage acquisition'})
+      ↳ 10 Best Incident Response Softwares & Tools in 2026 …
+   🤖 model call 3/8
+   💬 step result: **Atlas Analytics:** No vendor-specific news found for the exact company … Search results were unrelated or non-news pages, …
+
+🔄 REPLAN   (cycle 4)
+   decision: COMPLETE — All Q4 vendors have incident and pricing data, and the two vendors requiring adverse action were web-searched.
+
+🏁 COMPLETED · 4 cycle(s) · 2 replan(s)
 ```
 
 Na čo sa pozrieť:
-- **Preplánovanie v praxi:** po cykle 2 replanner zúžil webový prieskum na dodávateľov 1, 2 a 7
-  — presne tá adaptácia, kvôli ktorej je tu Plan-Execute.
-- **Paralelné volania nástrojov:** v cykle 3 si model v jednom volaní (`model call 2/8`)
-  vyžiadal tri `web_search` naraz.
-- **Kvalita zdrojov:** výsledky `web_search` sú všeobecné články o riziku dodávateľov, nie
-  správy o týchto (vymyslených) firmách — z logu je to hneď vidieť.
+- **Preplánovanie v praxi:** po cykle 1 replanner doplnil do plánu klasifikáciu podľa pravidiel
+  a po cykle 2 zúžil webový prieskum len na Northwind a Atlas Analytics — presne tá adaptácia,
+  kvôli ktorej je tu Plan-Execute.
+- **Web len tam, kde treba:** hľadá sa len pri dodávateľoch s odporúčanou zmenou, s presným
+  názvom v úvodzovkách a najviac 2× na firmu.
+- **Rozlíšenie firiem:** výsledky o *Northwind Self Storage* či *Atlas Systems* agent označil
+  za nesúvisiace a nepoužil ich ako dôkaz.
+- **Dôvody replannera** priamo citujú pravidlá („must be web-searched before recommending").
 
 ## Overenie počas prípravy
 
@@ -232,3 +257,35 @@ Na čo sa pozrieť:
   days, and when do their contracts renew?"* executor najprv zavolal `get_current_date`,
   odvodil z neho `date BETWEEN '2026-08-12' AND '2026-09-11'` a správne odpovedal
   Northwind Cloud Storage (obnova 2026-11-15).
+
+### Kvalita odpovede
+
+S pôvodným `gpt-5-nano` odpovede porušovali pravidlá: Atlas Analytics (+38 %) dostal *renew*
+namiesto *review pricing*, správy o iných firmách s podobným menom (F5 Silverline, Cedar
+healthcare) bral ako dôkaz, jedného dodávateľa v odpovedi vynechal a pri faktickej otázke
+robil zbytočnú rizikovú analýzu. Zmenilo sa:
+
+- **Dáta:** pribudol stĺpec `renewal_quote` — +38 % bolo predtým len v texte popisu služby,
+  takže sa to SQL-kom nedalo nájsť.
+- **Prompty:** planner vie, aké dáta v DB sú; executor uvádza mená dodávateľov, za dôkaz
+  berie len výsledok o presne tej istej firme a hľadá najviac 2× na firmu; replanner má
+  pravidlá odporúčania, smie tvrdiť len to, čo niektorý krok vrátil, a rozlišuje
+  „not searched" od „no vendor-specific news found".
+- **Model:** `gpt-5.6-luna` cez Responses API.
+
+Výsledok (otázka č. 2, 2026-09-11): Northwind → nepredĺžiť automaticky, renegotiate/replace;
+Atlas Analytics → review pricing; Cedar Payroll, Silverline Backups, Meridian Print Services,
+Tundra Facilities → renew. Všetkých 6 odporúčaní zodpovedá zámeru v dátach.
+
+Ostatné scripted otázky (2026-09-11, `gpt-5.6-luna`):
+
+- **č. 1** (zoznam Q4 kontraktov): 1 cyklus, jeden SQL dotaz, žiadne hľadanie na webe, len
+  fakty — 6 kontraktov s ročnou hodnotou, bez odporúčaní.
+- **č. 3** (briefing pre kritických dodávateľov): „business-critical" vyložil ako kritickosť
+  high/critical (5 dodávateľov). Incidenty dotazoval skôr, než o nich niečo tvrdil; Northwind →
+  renegotiate/replace (vyhľadaný na webe), ostatní → renew (SEV3 pri Silverline aj SEV2 pri
+  Beacon sú mimo 90-dňového okna).
+- **č. 4** (zruš zmluvu s Northwind): v databáze nič nezmenil, dotazoval incidenty aj web a
+  odporučil nepredĺžiť automaticky a pripraviť náhradu s ohľadom na výpovedné lehoty v zmluve.
+
+Model sa môže beh od behu správať mierne inak — toto sú výsledky jedného behu každej otázky.

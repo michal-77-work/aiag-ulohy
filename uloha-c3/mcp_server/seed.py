@@ -12,8 +12,8 @@ asked to untangle:
   correct recommendation is NOT to let it auto-renew - renegotiate the SLA or
   plan a replacement.
 - Another Q4 renewal (Cedar Payroll) is clean -> renew.
-- A third (Atlas Analytics) has no incidents but a steep price increase at
-  renewal -> review pricing.
+- A third (Atlas Analytics) has no incidents, but its renewal_quote is 38%
+  above the current annual_value -> review pricing.
 
 The point, as in the course's data-analyst lesson: over uniform random data an
 agent can only be asked questions with uninteresting answers. Here the internal
@@ -50,6 +50,7 @@ CREATE TABLE contracts (
     vendor_id     INTEGER NOT NULL REFERENCES vendors(vendor_id),
     service       TEXT NOT NULL,
     annual_value  REAL NOT NULL,
+    renewal_quote REAL NOT NULL,   -- annual price the vendor quoted for the next term
     start_date    TEXT NOT NULL,   -- ISO date
     renewal_date  TEXT NOT NULL,   -- ISO date
     auto_renew    INTEGER NOT NULL,-- 0 | 1
@@ -78,23 +79,23 @@ VENDORS = [
     (8, "Tundra Facilities", "Facilities", "Slovakia", "low"),
 ]
 
-# (contract_id, vendor_id, service, annual_value, start_date, renewal_date, auto_renew, status)
-# Q4 2026 = 2026-10-01 .. 2026-12-31
+# (contract_id, vendor_id, service, annual_value, renewal_quote, start_date, renewal_date, auto_renew, status)
+# Q4 2026 = 2026-10-01 .. 2026-12-31. Most quotes are a routine +3%.
 CONTRACTS = [
     # The problem child: critical, auto-renews in Q4, expensive.
-    (101, 1, "Primary object storage + CDN", 240000.0, "2023-11-15", "2026-11-15", 1, "active"),
+    (101, 1, "Primary object storage + CDN", 240000.0, 247200.0, "2023-11-15", "2026-11-15", 1, "active"),
     # Clean critical renewal in Q4.
-    (102, 2, "Payroll processing (EU)", 96000.0, "2024-12-01", "2026-12-01", 1, "active"),
-    # Steep price increase at renewal, no incidents.
-    (103, 3, "Analytics platform (renewal quote +38%)", 72000.0, "2024-10-20", "2026-10-20", 0, "active"),
+    (102, 2, "Payroll processing (EU)", 96000.0, 98880.0, "2024-12-01", "2026-12-01", 1, "active"),
+    # Steep price increase at renewal (+38% quote), no incidents.
+    (103, 3, "Analytics platform", 72000.0, 99360.0, "2024-10-20", "2026-10-20", 0, "active"),
     # High criticality but renews next year - noise for the Q4 filter.
-    (104, 4, "Inbound email filtering", 54000.0, "2025-03-01", "2027-03-01", 1, "active"),
-    (105, 6, "CRM seats + support", 120000.0, "2024-06-15", "2027-06-15", 1, "active"),
+    (104, 4, "Inbound email filtering", 54000.0, 55620.0, "2025-03-01", "2027-03-01", 1, "active"),
+    (105, 6, "CRM seats + support", 120000.0, 123600.0, "2024-06-15", "2027-06-15", 1, "active"),
     # Another Q4 renewal, high criticality, one minor incident only.
-    (106, 7, "Offsite backup + DR", 84000.0, "2024-10-05", "2026-10-05", 1, "active"),
+    (106, 7, "Offsite backup + DR", 84000.0, 86520.0, "2024-10-05", "2026-10-05", 1, "active"),
     # Low-criticality Q4 renewals - noise.
-    (107, 5, "Managed print fleet", 18000.0, "2025-11-30", "2026-11-30", 1, "active"),
-    (108, 8, "Facilities management", 26000.0, "2024-12-20", "2026-12-20", 0, "active"),
+    (107, 5, "Managed print fleet", 18000.0, 18000.0, "2025-11-30", "2026-11-30", 1, "active"),
+    (108, 8, "Facilities management", 26000.0, 26780.0, "2024-12-20", "2026-12-20", 0, "active"),
 ]
 
 # (vendor_id, date, type, severity, description)
@@ -122,7 +123,7 @@ def main() -> None:
             "INSERT INTO vendors VALUES (?, ?, ?, ?, ?)", VENDORS
         )
         con.executemany(
-            "INSERT INTO contracts VALUES (?, ?, ?, ?, ?, ?, ?, ?)", CONTRACTS
+            "INSERT INTO contracts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", CONTRACTS
         )
         con.executemany(
             "INSERT INTO incidents VALUES (NULL, ?, ?, ?, ?, ?)", INCIDENTS

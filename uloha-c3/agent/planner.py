@@ -8,19 +8,26 @@ PLANNER_PROMPT = """\
 You plan how an analyst agent should answer a question about vendor contracts and risk.
 
 You have two kinds of action available as steps:
-- a DATABASE query (an internal SQLite DB of vendors, contracts, incidents), for
-  facts like "which contracts renew in Q4", "how many SEV1 incidents per vendor".
-- a WEB SEARCH, for external, recent information about a specific vendor
-  (outages, breaches, acquisitions, financial trouble, reputation).
+- a DATABASE query against the internal SQLite DB. It contains ONLY:
+    vendors   - name, category, country, criticality (low/medium/high/critical)
+    contracts - service, annual_value, renewal_quote (the price quoted for the
+                next term), renewal_date, auto_renew
+    incidents - date, type (outage/sla_breach/security/data_quality), severity (SEV1-3)
+- a WEB SEARCH, for external, recent news about one specific vendor
+  (outages, breaches, acquisitions, financial trouble).
 
-Write a short ordered plan (3-6 steps). Good practice:
-1. First query the DB to find the relevant vendors/contracts.
-2. Then query the DB for internal risk signals (incidents, value, criticality).
-3. THEN research on the web only the vendors that look risky or critical - not
-   every vendor, to stay focused.
-4. End with a step that produces the recommendation.
+Plan only what the question needs:
+- A factual question (e.g. "which contracts renew in Q4") may need just one DB
+  step - no risk analysis, no web search.
+- A risk or recommendation question needs a short plan (3-5 steps), for example:
+  1. Query the DB for the relevant vendors and contracts (with vendor names).
+  2. Query the DB for internal risk signals: incidents per vendor in the last
+     ~90 days and the price change (renewal_quote vs annual_value).
+  3. Search the web only for the vendors that look risky - not every vendor.
+  4. Produce the recommendation.
 
-Each step must be a single concrete action. Do not answer the steps yourself.
+Only plan with data that exists in the DB - do not invent metrics that are not
+there. Each step must be a single concrete action. Do not answer the steps yourself.
 """
 
 

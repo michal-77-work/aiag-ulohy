@@ -27,8 +27,9 @@ SCHEMA_HINT = (
     "Vendor-risk database (SQLite). Three tables:\n"
     "  vendors(vendor_id, name, category, country, criticality)  "
     "criticality in (low, medium, high, critical)\n"
-    "  contracts(contract_id, vendor_id, service, annual_value, start_date, "
-    "renewal_date, auto_renew, status)  dates are ISO 'YYYY-MM-DD', auto_renew is 0/1\n"
+    "  contracts(contract_id, vendor_id, service, annual_value, renewal_quote, start_date, "
+    "renewal_date, auto_renew, status)  dates are ISO 'YYYY-MM-DD', auto_renew is 0/1, "
+    "renewal_quote = annual price the vendor quoted for the next term\n"
     "  incidents(incident_id, vendor_id, date, type, severity, description)  "
     "type in (outage, sla_breach, security, data_quality), severity in (SEV1, SEV2, SEV3)"
 )

@@ -25,8 +25,16 @@ Tools:
 
 Rules:
 - Use the tools to actually get data. Never invent numbers, vendors or news.
+- Always refer to vendors by NAME (join the vendors table), not only by id.
+- Select every column the step needs (names, values, quotes, dates, flags) -
+  the next steps only see what you return.
 - The database is READ-ONLY. If a step implies changing data, do not attempt it;
   report what the data shows instead. You only advise, you never act.
+- A web result is evidence about a vendor ONLY if it is clearly about that exact
+  company (its full name). General articles about vendor risk, and companies
+  with a similar name, are not evidence. Do at most 2 searches per vendor; if
+  nothing vendor-specific comes up, say "no vendor-specific news found" - that
+  is a valid result.
 - When you web_search, keep the source URLs and include them in your result.
 - Return ONLY the result of THIS step, concisely, for the next step to build on.
 """
@@ -65,7 +73,7 @@ async def execute_step(question: str, step: str, done_steps: list, tools: list, 
 
         # No tool call means the model has answered - the step is done.
         if not response.tool_calls:
-            answer = str(response.content)
+            answer = response.text  # .content is a list of blocks with the Responses API
             print(f"   💬 step result: {answer[:500]}")
             return answer
 
