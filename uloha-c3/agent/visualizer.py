@@ -15,8 +15,8 @@ OUTPUT = Path(__file__).parent / "graph.png"
 
 MERMAID = """
 flowchart TD
-    S([START]) --> P["PLANNER<br/>LCEL: prompt to model to Plan"]
-    P --> EX["EXECUTOR<br/>create_agent - one step"]
+    S([START]) --> P["PLANNER<br/>planner.py - list of steps"]
+    P --> EX["EXECUTOR<br/>executor.py - tool-calling loop, one step"]
 
     EX -->|run_sql_query| DB["vendor DB via MCP :8020<br/>read-only SQLite"]
     EX -->|get_current_date| DT["current date<br/>today + quarter"]
@@ -25,7 +25,7 @@ flowchart TD
     DT --> EX
     WEB --> EX
 
-    EX --> RP{"REPLANNER<br/>done?"}
+    EX --> RP{"REPLANNER<br/>replanner.py - done?"}
     RP -->|no: revise remaining steps| EX
     RP -->|yes: final recommendation| F["FINALIZE<br/>renew / renegotiate / replace"]
     F --> E([END])

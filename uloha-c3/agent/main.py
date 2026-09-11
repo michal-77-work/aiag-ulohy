@@ -9,7 +9,9 @@
 import asyncio
 import sys
 
-from agent import build_agent
+from agent import run_agent
+from mcp_client import load_db_tools
+from tools import get_current_date, web_search
 
 QUESTIONS = [
     # Clean DB step - no web needed.
@@ -29,40 +31,24 @@ QUESTIONS = [
 ]
 
 
-def make_printer():
-    def on_event(kind: str, payload) -> None:
-        if kind == "plan":
-            print("\n[plan]")
-            for i, step in enumerate(payload, 1):
-                print(f"  {i}. {step}")
-        elif kind == "step":
-            print(f"\n[step] {payload}")
-        elif kind == "result":
-            _, result = payload
-            preview = result if len(result) < 600 else result[:600] + " ..."
-            print(f"  -> {preview}")
-        elif kind == "replan":
-            if payload.is_complete:
-                print("  [replan] complete")
-            elif payload.remaining_steps:
-                print(f"  [replan] revised remaining: {payload.remaining_steps}")
-    return on_event
-
-
-async def ask(agent, question: str) -> None:
-    print("\n" + "=" * 76)
-    print(f"Q: {question}")
-    print("=" * 76)
-    answer = await agent.run(question, on_event=make_printer())
-    print("\n--- ANSWER ---")
-    print(answer)
-
-
 async def main() -> None:
-    agent = await build_agent()
+    # The log uses emojis; on Windows the output is often not UTF-8 by default.
+    sys.stdout.reconfigure(encoding="utf-8")
+
+    db_tools = await load_db_tools()  # from the MCP server
+    tools = db_tools + [get_current_date, web_search]
+    print(f"🔧 {len(tools)} tools: {[tool.name for tool in tools]}")
+
     questions = [" ".join(sys.argv[1:])] if len(sys.argv) > 1 else QUESTIONS
-    for q in questions:
-        await ask(agent, q)
+    for question in questions:
+        print("\n" + "#" * 70)
+        print(f"❓ {question}")
+        print("#" * 70)
+
+        answer = await run_agent(question, tools)
+
+        print("\n💡 ANSWER:")
+        print(answer)
 
 
 if __name__ == "__main__":
