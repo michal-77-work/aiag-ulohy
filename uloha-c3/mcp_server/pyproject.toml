@@ -1,0 +1,11 @@
+[project]
+name = "vendor-db-mcp-server"
+version = "0.1.0"
+description = "Streamable HTTP MCP server exposing the vendor-risk SQLite DB as a read-only SQL tool"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "mcp>=1.9.4,<2",
+    "starlette>=0.37.0",
+    "uvicorn>=0.34.0",
+]

@@ -1,0 +1,11 @@
+[project]
+name = "uloha-c1"
+version = "0.1.0"
+description = "Skript, ktory zavola LLM API, pouzije nastroj (pocasie cez Open-Meteo) a vrati odpoved spat LLM"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "openai>=1.66.3",
+    "python-dotenv>=1.0.1",
+    "requests>=2.32.0",
+]

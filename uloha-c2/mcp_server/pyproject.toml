@@ -1,0 +1,12 @@
+[project]
+name = "helpdesk-db-mcp-server"
+version = "0.1.0"
+description = "Simple hand-written Streamable HTTP MCP server exposing the helpdesk Postgres DB as a read-only SQL tool"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "mcp>=1.9.4,<2",
+    "psycopg2-binary>=2.9.9",
+    "starlette>=0.37.0",
+    "uvicorn>=0.34.0",
+]
